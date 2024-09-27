@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Idle Programmer</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #f8f9fa;
+            color: #212529;
+        }
+
+        .game-container {
+            text-align: center;
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            max-width: 600px;
+            width: 100%;
+            position: relative;
+        }
+
+        #code-block {
+            width: 100px;
+            height: 100px;
+            cursor: pointer;
+            transition: transform 0.1s;
+            background-color: #e9ecef;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            font-weight: bold;
+            margin: 20px auto;
+        }
+
+        #code-block:active {
+            transform: scale(0.95);
+        }
+
+        .upgrade,
+        #prestige-btn {
+            margin: 10px 0;
+            padding: 10px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            width: 100%;
+            text-align: left;
+        }
+
+        .upgrade:hover,
+        #prestige-btn:hover {
+            background-color: #0056b3;
+        }
+
+        .upgrade:disabled,
+        #prestige-btn:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+
+        #upgrades {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 10px;
+        }
+
+        #reset-btn {
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 10px 20px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 20px;
+        }
+
+        #reset-btn:hover {
+            background-color: #c82333;
+        }
+
+        #prestige-btn {
+            background-color: #28a745;
+        }
+
+        #prestige-btn:hover {
+            background-color: #218838;
+        }
+
+        .button-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="game-container">
+        <h1>Idle Programmer</h1>
+        <p>Idle Stats: <span id="stat-count">0</span></p>
+        <p>Stats per second: <span id="sps">0</span></p>
+        <p>Prestige Level: <span id="prestige-level">0</span></p>
+        <div id="code-block">{ }</div>
+        <div id="upgrades"></div>
+        <div class="button-container">
+            <button id="prestige-btn" disabled>Prestige</button>
+        </div>
+        <button id="reset-btn">Hard Reset Game</button>
+    </div>
+
+    <script>
+        let stats = 0;
+        let sps = 0;
+        let prestigeLevel = 0;
+        const prestigeRequirement = 1e6;
+        const upgrades = [
+            { name: "Variables", base_cost: 15, base_sps: 0.1, count: 0 },
+            { name: "For Loops", base_cost: 100, base_sps: 1, count: 0 },
+            { name: "While Loops", base_cost: 1100, base_sps: 8, count: 0 },
+            { name: "Functions", base_cost: 12000, base_sps: 47, count: 0 },
+            { name: "Classes", base_cost: 130000, base_sps: 260, count: 0 },
+            { name: "Algorithms", base_cost: 1400000, base_sps: 1400, count: 0 },
+            { name: "Data Structures", base_cost: 20000000, base_sps: 7800, count: 0 }
+        ];
+
+        function updateDisplay() {
+            document.getElementById('stat-count').textContent = Math.floor(stats);
+            document.getElementById('sps').textContent = (sps * getPrestigeMultiplier()).toFixed(1);
+            document.getElementById('prestige-level').textContent = prestigeLevel;
+
+            upgrades.forEach((upgrade, index) => {
+                const button = document.getElementById(`upgrade-${index}`);
+                button.innerHTML = `${upgrade.name} (${upgrade.count})<br>Cost: ${Math.floor(upgrade.base_cost * Math.pow(1.15, upgrade.count))} stats`;
+                button.disabled = stats < upgrade.base_cost * Math.pow(1.15, upgrade.count);
+            });
+
+            const prestigeBtn = document.getElementById('prestige-btn');
+            const possiblePrestiges = Math.floor(Math.log(stats / prestigeRequirement) / Math.log(10));
+            prestigeBtn.disabled = possiblePrestiges < 1;
+            prestigeBtn.innerHTML = `Prestige (${possiblePrestiges > 0 ? '+' + possiblePrestiges : 'Requires 1e6 stats'})`;
+        }
+
+        function createUpgradeButtons() {
+            const upgradesContainer = document.getElementById('upgrades');
+            upgrades.forEach((upgrade, index) => {
+                const button = document.createElement('button');
+                button.id = `upgrade-${index}`;
+                button.classList.add('upgrade');
+                button.onclick = () => buyUpgrade(index);
+                upgradesContainer.appendChild(button);
+            });
+        }
+
+        function buyUpgrade(index) {
+            const upgrade = upgrades[index];
+            const cost = Math.floor(upgrade.base_cost * Math.pow(1.15, upgrade.count));
+            if (stats >= cost) {
+                stats -= cost;
+                upgrade.count++;
+                sps += upgrade.base_sps;
+                updateDisplay();
+                saveGame();
+            }
+        }
+
+        function clickCodeBlock() {
+            stats += 1 * getPrestigeMultiplier();
+            updateDisplay();
+            saveGame();
+        }
+
+        function gameLoop() {
+            stats += (sps * getPrestigeMultiplier()) / 10;
+            updateDisplay();
+            saveGame();
+        }
+
+        function saveGame() {
+            const gameState = {
+                stats: stats,
+                sps: sps,
+                prestigeLevel: prestigeLevel,
+                upgrades: upgrades.map(upgrade => ({ count: upgrade.count }))
+            };
+            localStorage.setItem('idleProgrammerState', JSON.stringify(gameState));
+        }
+
+        function loadGame() {
+            const savedState = localStorage.getItem('idleProgrammerState');
+            if (savedState) {
+                const gameState = JSON.parse(savedState);
+                stats = gameState.stats;
+                sps = gameState.sps;
+                prestigeLevel = gameState.prestigeLevel || 0;
+                gameState.upgrades.forEach((savedUpgrade, index) => {
+                    upgrades[index].count = savedUpgrade.count;
+                });
+                recalculateSPS();
+                updateDisplay();
+            }
+        }
+
+        function recalculateSPS() {
+            sps = upgrades.reduce((total, upgrade) => total + upgrade.base_sps * upgrade.count, 0);
+        }
+
+        function hardReset() {
+            if (confirm('Are you sure you want to reset all progress? This cannot be undone.')) {
+                localStorage.removeItem('idleProgrammerState');
+                stats = 0;
+                sps = 0;
+                prestigeLevel = 0;
+                upgrades.forEach(upgrade => upgrade.count = 0);
+                updateDisplay();
+            }
+        }
+
+        function prestige() {
+            const possiblePrestiges = Math.floor(Math.log(stats / prestigeRequirement) / Math.log(10));
+            if (possiblePrestiges >= 1) {
+                prestigeLevel += possiblePrestiges;
+                stats = prestigeRequirement;
+                sps = 0;
+                upgrades.forEach(upgrade => upgrade.count = 0);
+                updateDisplay();
+                saveGame();
+                alert(`Congratulations! You've prestiged ${possiblePrestiges} times. Your new prestige level is ${prestigeLevel}. Your stat gains are now multiplied by ${getPrestigeMultiplier().toFixed(1)}x.`);
+            }
+        }
+
+        function getPrestigeMultiplier() {
+            return 1 + (prestigeLevel * 0.1);
+        }
+
+        document.getElementById('code-block').onclick = clickCodeBlock;
+        document.getElementById('reset-btn').onclick = hardReset;
+        document.getElementById('prestige-btn').onclick = prestige;
+        createUpgradeButtons();
+        loadGame();
+        setInterval(gameLoop, 100);
+    </script>
+</body>
+
+</html>
